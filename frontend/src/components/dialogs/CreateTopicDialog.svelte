@@ -1,19 +1,20 @@
 <script lang="ts">
     import Dialog from "./Dialog.svelte"
     import { createEventDispatcher } from "svelte"
+    import type { kafka } from "../../../wailsjs/go/models"
 
     const dispatch = createEventDispatcher()
 
     let name: string
-    let partitions: string
-    let replicas: string
+    let numPartitions: string
+    let replicationFactor: string
 
     function create() {
         dispatch("create", {
-            name,
-            partitions: Number(partitions),
-            replicas: Number(replicas)
-        })
+            topic: name,
+            numPartitions: Number(numPartitions),
+            replicationFactor: Number(replicationFactor)
+        } as kafka.TopicConfig)
     }
 
     function cancel() {
@@ -28,12 +29,14 @@
             <section><input type="text" bind:value={name} /></section>
         </section>
         <section>
-            <p>Partitions:</p>
-            <section><input type="text" bind:value={partitions} /></section>
+            <p>Number of Partitions:</p>
+            <section><input type="text" bind:value={numPartitions} /></section>
         </section>
         <section>
-            <p>Replicas:</p>
-            <section><input type="text" bind:value={replicas} /></section>
+            <p>Replication Factor:</p>
+            <section>
+                <input type="text" bind:value={replicationFactor} />
+            </section>
         </section>
         <button on:click={create}>Create</button>
         <button on:click={cancel}>Cancel</button>

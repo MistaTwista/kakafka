@@ -1,14 +1,10 @@
 <script lang="ts">
     import { createEventDispatcher } from "svelte"
+    import type { kafka } from "wailsjs/go/models"
 
     const dispatch = createEventDispatcher()
 
-    interface Item {
-        name: string
-        system: boolean
-    }
-
-    export let topics: Item[]
+    export let topics: kafka.Topic[]
 
     function select(index: number) {
         dispatch("select", index)
@@ -28,7 +24,7 @@
                 }}
             >
                 <span>{item.name}</span>
-                {#if !item.system}
+                {#if !item.internal}
                     <button on:click={() => deleteTopic(index)}>x</button>
                 {/if}
             </li>

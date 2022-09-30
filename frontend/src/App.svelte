@@ -1,37 +1,36 @@
 <script lang="ts">
-    import {
-        GetConfigs,
-        GetTopics,
-        Connect,
-        CreateTopic,
-        DeleteTopic
-    } from "../wailsjs/go/application/Application"
-    import type { application, kafka } from "../wailsjs/go/models"
+    import { GetConfigs, GetTopics, Connect, CreateTopic, DeleteTopic, ConsumerOffsets } from "../wailsjs/go/application/Application"
+    import type { kafka, application } from "../wailsjs/go/models"
     import CreateTopicDialog from "./components/dialogs/CreateTopicDialog.svelte"
     import DeleteTopicDialog from "./components/dialogs/DeleteTopicDialog.svelte"
     import ProfilesSidebar from "./components/ProfilesSideBar.svelte"
     import TopicList from "./components/TopicList.svelte"
-
-    interface Topic extends kafka.Topic {
-        selected: boolean
-        system: boolean
-    }
+    import Topic from "./components/Topic.svelte"
+    import { LogDebug } from "../wailsjs/runtime"
 
     interface Profile extends application.Profile {
         connected: boolean
-        topics: Topic[]
+        topics: kafka.Topic[]
     }
 
     let profiles: Profile[] = []
-    let selectedProfile: string
-    $: selectedProfileIndex = profiles.findIndex(p => p.name == selectedProfile)
-    $: topics = profiles[selectedProfileIndex]?.topics.map(t => ({
-        name: t.name,
-        system: t.system
-    }))
+    let selectedProfileIndex: number | undefined
+    $: selectedProfile = selectedProfileIndex !== undefined ? profiles[selectedProfileIndex] : undefined
+
+    $: showTopicsBar = !!selectedProfile?.connected
+    $: topics = selectedProfile?.topics || []
+
+    let selectedTopicIndex: number | undefined
+    let selectedTopicConsumerOffsets: kafka.ConsumerOffset[] | undefined
+    $: selectedTopic = selectedTopicIndex !== undefined ? topics[selectedTopicIndex] : undefined
+
+    $: showTopicPanel = selectedTopic !== undefined
 
     let topicCreateDialogIsActive: boolean
-    let deletingTopic: string | undefined
+
+    let indexOfTopicForDelete: number | undefined
+    $: topicForDelete = indexOfTopicForDelete !== undefined && topics[indexOfTopicForDelete]
+    $: topicDeleteDialogIsActive = indexOfTopicForDelete !== undefined
 
     getConfigs()
 
@@ -54,49 +53,29 @@
     }
 
     function showTopicDeleteDialog(e: CustomEvent<number>) {
-        deletingTopic = topics[e.detail].name
+        indexOfTopicForDelete = e.detail
     }
 
     function hideTopicDeleteDialog() {
-        deletingTopic = undefined
+        indexOfTopicForDelete = undefined
     }
 
-    interface CreateTopicEvent {
-        name: string
-        partitions: number
-        replicas: number
-    }
+    async function createTopic(e: CustomEvent<kafka.TopicConfig>) {
+        const topic = await CreateTopic(selectedProfile.name, e.detail)
 
-    async function createTopic(e: CustomEvent<CreateTopicEvent>) {
-        const topic = await CreateTopic(
-            selectedProfile,
-            e.detail.name,
-            e.detail.partitions,
-            e.detail.replicas
-        )
+        const newTopicList: kafka.Topic[] = [...topics, topic]
 
-        const newTopics = [
-            ...profiles[selectedProfileIndex].topics,
-            {
-                ...topic,
-                selected: false,
-                system: false
-            }
-        ]
+        newTopicList.sort((a, b) => a.name.localeCompare(b.name))
 
-        newTopics.sort((a, b) => a.name.localeCompare(b.name))
-
-        profiles[selectedProfileIndex].topics = newTopics
+        profiles[selectedProfileIndex].topics = newTopicList
 
         hideTopicCreateDialog()
     }
 
     async function deleteTopic() {
-        await DeleteTopic(selectedProfile, deletingTopic)
+        await DeleteTopic(selectedProfile.name, topicForDelete.name)
 
-        const newTopics = profiles[selectedProfileIndex].topics.filter(
-            t => t.name != deletingTopic
-        )
+        const newTopics = topics.filter(t => t.name != topicForDelete.name)
 
         profiles[selectedProfileIndex].topics = newTopics
 
@@ -104,21 +83,35 @@
     }
 
     async function selectProfile(e: CustomEvent<number>) {
-        const profile = profiles[e.detail]
+        selectedTopicConsumerOffsets = undefined
+
+        const profileIndex = e.detail
+
+        const profile = profiles[profileIndex]
 
         if (!profile.connected) {
             await Connect(profile.name)
         }
 
-        profiles[e.detail].connected = true
+        profiles[profileIndex].connected = true
 
-        const list = await GetTopics(profile.name)
-        profiles[e.detail].topics = list.map(t => ({
-            ...t,
-            selected: false,
-            system: t.name.startsWith("__")
-        }))
-        selectedProfile = profile.name
+        const topicList = await GetTopics(profile.name, false)
+
+        profiles[profileIndex].topics = topicList
+
+        selectedProfileIndex = profileIndex
+    }
+
+    async function selectTopic(e: CustomEvent<number>) {
+        const topicIndex = e.detail
+
+        const topic = topics[topicIndex]
+
+        selectedTopicIndex = topicIndex
+
+        const offsets = await ConsumerOffsets(selectedProfile.name, topic.name)
+        
+        selectedTopicConsumerOffsets = offsets
     }
 </script>
 
@@ -126,27 +119,24 @@
     <aside>
         <ProfilesSidebar {profiles} on:select={selectProfile} />
     </aside>
-    {#if topics}
+    {#if showTopicsBar}
         <aside>
             <button on:click={showTopicCreateDialog}>Create topic</button>
-            <TopicList {topics} on:delete={showTopicDeleteDialog} />
+            <TopicList {topics} on:select={selectTopic} on:delete={showTopicDeleteDialog} />
         </aside>
     {/if}
-    <section class="content">content</section>
-
-    {#if topicCreateDialogIsActive}
-        <CreateTopicDialog
-            on:create={createTopic}
-            on:cancel={hideTopicCreateDialog}
-        />
+    {#if showTopicPanel}
+        <Topic topic={selectedTopic} consumerOffsets={selectedTopicConsumerOffsets} />
+    {:else}
+        <section>select topic...</section>
     {/if}
 
-    {#if !!deletingTopic}
-        <DeleteTopicDialog
-            name={deletingTopic}
-            on:confirm={deleteTopic}
-            on:cancel={hideTopicDeleteDialog}
-        />
+    {#if topicCreateDialogIsActive}
+        <CreateTopicDialog on:create={createTopic} on:cancel={hideTopicCreateDialog} />
+    {/if}
+
+    {#if topicDeleteDialogIsActive}
+        <DeleteTopicDialog topic={topicForDelete} on:confirm={deleteTopic} on:cancel={hideTopicDeleteDialog} />
     {/if}
 </main>
 
