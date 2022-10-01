@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/x-foby/kakafka/internal/kafka"
@@ -37,6 +38,66 @@ func (a *Application) GetConfigs() Config {
 	return a.cfg
 }
 
+func (a *Application) CreateProfile(p Profile) error {
+	err := a.createProfile(p)
+	if err != nil {
+		runtime.MessageDialog(
+			a.ctx,
+			runtime.MessageDialogOptions{
+				Type:    runtime.ErrorDialog,
+				Message: err.Error(),
+			},
+		)
+	}
+
+	return err
+}
+
+func (a *Application) createProfile(p Profile) error {
+	for _, profile := range a.cfg.Profiles {
+		if profile.Name == p.Name {
+			return fmt.Errorf("profile %q already exists", p.Name)
+		}
+	}
+
+	if len(p.Brokers) == 0 {
+		return errors.New("empty broker list")
+	}
+
+	a.cfg.Profiles = append(a.cfg.Profiles, p)
+
+	return saveConfig(a.ctx, a.cfg)
+}
+
+func (a *Application) DeleteProfile(profileName string) error {
+	err := a.deleteProfile(profileName)
+	if err != nil {
+		runtime.MessageDialog(
+			a.ctx,
+			runtime.MessageDialogOptions{
+				Type:    runtime.ErrorDialog,
+				Message: err.Error(),
+			},
+		)
+	}
+
+	return err
+}
+
+func (a *Application) deleteProfile(profileName string) error {
+	var profiles []Profile
+
+	for _, profile := range a.cfg.Profiles {
+		if profile.Name != profileName {
+			profiles = append(profiles, profile)
+		}
+	}
+
+	a.cfg.Profiles = profiles
+
+	return saveConfig(a.ctx, a.cfg)
+}
+
 func (a *Application) Connect(profileName string) error {
 	err := a.connect(profileName)
 	if err != nil {
@@ -68,7 +129,7 @@ func (a *Application) connect(profileName string) error {
 
 	runtime.LogDebugf(a.ctx, "connecting for profiles: %s", profileName)
 
-	conn, err := kafka.Connect(a.ctx, profile.BootstrapServers...)
+	conn, err := kafka.Connect(a.ctx, profile.Brokers...)
 	if err != nil {
 		return err
 	}

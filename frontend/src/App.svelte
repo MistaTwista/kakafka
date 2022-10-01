@@ -1,12 +1,22 @@
 <script lang="ts">
-    import { GetConfigs, GetTopics, Connect, CreateTopic, DeleteTopic, ConsumerOffsets } from "../wailsjs/go/application/Application"
+    import {
+        GetConfigs,
+        GetTopics,
+        Connect,
+        CreateProfile,
+        DeleteProfile,
+        CreateTopic,
+        DeleteTopic,
+        ConsumerOffsets
+    } from "../wailsjs/go/application/Application"
     import type { kafka, application } from "../wailsjs/go/models"
     import CreateTopicDialog from "./components/dialogs/CreateTopicDialog.svelte"
     import DeleteTopicDialog from "./components/dialogs/DeleteTopicDialog.svelte"
     import ProfilesSidebar from "./components/ProfilesSideBar.svelte"
     import TopicList from "./components/TopicList.svelte"
     import Topic from "./components/Topic.svelte"
-    import { LogDebug } from "../wailsjs/runtime"
+    import CreateProfileDialog from "./components/dialogs/CreateProfileDialog.svelte"
+    import DeleteProfileDialog from "./components/dialogs/DeleteProfileDialog.svelte"
 
     interface Profile extends application.Profile {
         connected: boolean
@@ -32,6 +42,10 @@
     $: topicForDelete = indexOfTopicForDelete !== undefined && topics[indexOfTopicForDelete]
     $: topicDeleteDialogIsActive = indexOfTopicForDelete !== undefined
 
+    let profileCreateDialogIsActive: boolean
+    let profileForDelete: Profile
+    let profileDeleteDialogIsActive: boolean
+
     getConfigs()
 
     function getConfigs() {
@@ -42,6 +56,23 @@
                 topics: []
             }))
         })
+    }
+
+    function showProfileCreateDialog() {
+        profileCreateDialogIsActive = true
+    }
+
+    function hideProfileCreateDialog() {
+        profileCreateDialogIsActive = false
+    }
+
+    function showProfileDeleteDialog(e: CustomEvent<Profile>) {
+        profileForDelete = e.detail
+        profileDeleteDialogIsActive = true
+    }
+
+    function hideProfileDeleteDialog() {
+        profileDeleteDialogIsActive = false
     }
 
     function showTopicCreateDialog() {
@@ -58,6 +89,29 @@
 
     function hideTopicDeleteDialog() {
         indexOfTopicForDelete = undefined
+    }
+
+    async function createProfile(e: CustomEvent<application.Profile>) {
+        await CreateProfile(e.detail)
+
+        profiles = [
+            ...profiles,
+            {
+                ...e.detail,
+                connected: false,
+                topics: []
+            }
+        ]
+
+        hideProfileCreateDialog()
+    }
+
+    async function deleteProfile() {
+        await DeleteProfile(profileForDelete.name)
+
+        profiles = profiles.filter(p => p.name != profileForDelete.name)
+
+        hideProfileDeleteDialog()
     }
 
     async function createTopic(e: CustomEvent<kafka.TopicConfig>) {
@@ -110,14 +164,19 @@
         selectedTopicIndex = topicIndex
 
         const offsets = await ConsumerOffsets(selectedProfile.name, topic.name)
-        
+
         selectedTopicConsumerOffsets = offsets
     }
 </script>
 
 <main>
     <aside>
-        <ProfilesSidebar {profiles} on:select={selectProfile} />
+        <ProfilesSidebar
+            {profiles}
+            on:select={selectProfile}
+            on:create-profile={showProfileCreateDialog}
+            on:delete-profile={showProfileDeleteDialog}
+        />
     </aside>
     {#if showTopicsBar}
         <aside>
@@ -128,7 +187,15 @@
     {#if showTopicPanel}
         <Topic topic={selectedTopic} consumerOffsets={selectedTopicConsumerOffsets} />
     {:else}
-        <section>select topic...</section>
+        <section class="empty">select topic...</section>
+    {/if}
+
+    {#if profileCreateDialogIsActive}
+        <CreateProfileDialog on:create={createProfile} on:cancel={hideProfileCreateDialog} />
+    {/if}
+
+    {#if profileDeleteDialogIsActive}
+        <DeleteProfileDialog profile={profileForDelete} on:confirm={deleteProfile} on:cancel={hideProfileDeleteDialog} />
     {/if}
 
     {#if topicCreateDialogIsActive}
@@ -148,5 +215,13 @@
         align-items: stretch;
         height: 100%;
         width: 100%;
+    }
+
+    .empty {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-grow: 1;
+        user-select: none;
     }
 </style>

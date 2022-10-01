@@ -13,8 +13,8 @@ import (
 )
 
 type Profile struct {
-	Name             string   `yaml:"name" json:"name"`
-	BootstrapServers []string `yaml:"bootstrapServers" json:"bootstrapServers"`
+	Name    string   `yaml:"name" json:"name"`
+	Brokers []string `yaml:"brokers" json:"brokers"`
 }
 
 type Config struct {
@@ -23,11 +23,58 @@ type Config struct {
 }
 
 func loadConfig(ctx context.Context) (*Config, error) {
+	configFileName, err := getConfigFileName(ctx)
+	if err != nil && os.IsNotExist(err) {
+		runtime.LogDebug(ctx, "creating user config file")
+
+		const emptyConfig = "---\nversion: \"0\"\n"
+
+		if err := ioutil.WriteFile(configFileName, []byte(emptyConfig), 0600); err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, err
+	}
+
+	runtime.LogDebug(ctx, "reading user config file")
+
+	buf, err := ioutil.ReadFile(configFileName)
+	if err != nil {
+		return nil, err
+	}
+
+	runtime.LogDebug(ctx, "unmarshaling user config")
+
+	var cfg Config
+	if err := yaml.Unmarshal(buf, &cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func saveConfig(ctx context.Context, cfg Config) error {
+	configFileName, err := getConfigFileName(ctx)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	buf, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+
+	runtime.LogDebug(ctx, "saving user config")
+
+	return ioutil.WriteFile(configFileName, buf, 0600)
+}
+
+func getConfigFileName(ctx context.Context) (string, error) {
 	runtime.LogDebug(ctx, "getting user config dir")
 
 	userConfigDir, err := os.UserConfigDir()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	runtime.LogDebugf(ctx, "user config dir: %s", userConfigDir)
@@ -47,21 +94,17 @@ func loadConfig(ctx context.Context) (*Config, error) {
 			break
 		}
 
-		return nil, err
+		return "", err
 	case !stat.IsDir():
-		return nil, fmt.Errorf("%s is not directory", appConfigDir)
+		return "", fmt.Errorf("%s is not directory", appConfigDir)
 	}
-
-	var needCreateConfig bool
 
 	if needCreateDir {
 		runtime.LogDebug(ctx, "creating user config dir")
 
 		if err := os.Mkdir(appConfigDir, 0700); err != nil {
-			return nil, errors.New("failed to create directory")
+			return "", errors.New("failed to create directory")
 		}
-
-		needCreateConfig = true
 	}
 
 	configFileName := filepath.Join(appConfigDir, "config.yaml")
@@ -69,41 +112,14 @@ func loadConfig(ctx context.Context) (*Config, error) {
 	runtime.LogDebugf(ctx, "config file name: %s", configFileName)
 	runtime.LogDebug(ctx, "checking user config file for existing")
 
-	switch stat, err := os.Stat(configFileName); {
-	case err != nil:
-		if os.IsNotExist(err) {
-			needCreateConfig = true
-			break
-		}
-
-		return nil, err
-	case stat.IsDir():
-		return nil, fmt.Errorf("%s is directory", configFileName)
-	}
-
-	const emptyConfig = "---\nversion: \"0\"\n"
-
-	if needCreateConfig {
-		runtime.LogDebug(ctx, "creating user config file")
-
-		if err := ioutil.WriteFile(configFileName, []byte(emptyConfig), 0600); err != nil {
-			return nil, err
-		}
-	}
-
-	runtime.LogDebug(ctx, "reading user config file")
-
-	buf, err := ioutil.ReadFile(configFileName)
+	stat, err := os.Stat(configFileName)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	runtime.LogDebug(ctx, "unmarshaling user config")
-
-	var cfg Config
-	if err := yaml.Unmarshal(buf, &cfg); err != nil {
-		return nil, err
+	if stat.IsDir() {
+		return "", fmt.Errorf("%s is directory", configFileName)
 	}
 
-	return &cfg, nil
+	return configFileName, nil
 }

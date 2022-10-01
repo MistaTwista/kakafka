@@ -119,25 +119,25 @@ func (c TopicConfig) toKafka() kafka.TopicConfig {
 }
 
 type Conn struct {
-	bootstrapServers []string
-	client           *kafka.Client
-	topics           []Topic
+	brokers []string
+	client  *kafka.Client
+	topics  []Topic
 }
 
 var ErrNoBrokers = errors.New("no brokers")
 
-func Connect(ctx context.Context, bootstrapServers ...string) (*Conn, error) {
-	if len(bootstrapServers) == 0 {
+func Connect(ctx context.Context, brokers ...string) (*Conn, error) {
+	if len(brokers) == 0 {
 		return nil, ErrNoBrokers
 	}
 
 	client := kafka.Client{
-		Addr: kafka.TCP(bootstrapServers...),
+		Addr: kafka.TCP(brokers...),
 	}
 
 	conn := Conn{
-		bootstrapServers: bootstrapServers,
-		client:           &client,
+		brokers: brokers,
+		client:  &client,
 	}
 
 	if err := conn.loadTopics(ctx); err != nil {
@@ -149,7 +149,7 @@ func Connect(ctx context.Context, bootstrapServers ...string) (*Conn, error) {
 
 func (c *Conn) loadTopics(ctx context.Context) error {
 	metadata, err := c.client.Metadata(ctx, &kafka.MetadataRequest{
-		Addr: kafka.TCP(c.bootstrapServers...),
+		Addr: kafka.TCP(c.brokers...),
 	})
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ var errNoTopic = errors.New("no topic")
 
 func (c *Conn) CreateTopic(ctx context.Context, topic TopicConfig) (*Topic, error) {
 	if _, err := c.client.CreateTopics(ctx, &kafka.CreateTopicsRequest{
-		Addr:   kafka.TCP(c.bootstrapServers...),
+		Addr:   kafka.TCP(c.brokers...),
 		Topics: []kafka.TopicConfig{topic.toKafka()},
 	}); err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func (c *Conn) CreateTopic(ctx context.Context, topic TopicConfig) (*Topic, erro
 
 func (c *Conn) DeleteTopic(ctx context.Context, topic string) error {
 	if _, err := c.client.DeleteTopics(ctx, &kafka.DeleteTopicsRequest{
-		Addr:   kafka.TCP(c.bootstrapServers...),
+		Addr:   kafka.TCP(c.brokers...),
 		Topics: []string{topic},
 	}); err != nil {
 		return err
@@ -232,7 +232,7 @@ type ConsumerOffset struct {
 
 func (c *Conn) ConsumerOffsets(ctx context.Context, topicName string) ([]ConsumerOffset, error) {
 	groups, err := c.client.ListGroups(ctx, &kafka.ListGroupsRequest{
-		Addr: kafka.TCP(c.bootstrapServers...),
+		Addr: kafka.TCP(c.brokers...),
 	})
 	if err != nil {
 		return nil, err
@@ -252,7 +252,7 @@ func (c *Conn) ConsumerOffsets(ctx context.Context, topicName string) ([]Consume
 
 	for i, group := range groups.Groups {
 		resp, err := c.client.OffsetFetch(ctx, &kafka.OffsetFetchRequest{
-			Addr:    kafka.TCP(c.bootstrapServers...),
+			Addr:    kafka.TCP(c.brokers...),
 			Topics:  map[string][]int{topic.Name: partitions},
 			GroupID: group.GroupID,
 		})

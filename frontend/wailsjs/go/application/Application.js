@@ -10,8 +10,16 @@ export function ConsumerOffsets(arg1, arg2) {
   return window['go']['application']['Application']['ConsumerOffsets'](arg1, arg2);
 }
 
+export function CreateProfile(arg1) {
+  return window['go']['application']['Application']['CreateProfile'](arg1);
+}
+
 export function CreateTopic(arg1, arg2) {
   return window['go']['application']['Application']['CreateTopic'](arg1, arg2);
+}
+
+export function DeleteProfile(arg1) {
+  return window['go']['application']['Application']['DeleteProfile'](arg1);
 }
 
 export function DeleteTopic(arg1, arg2) {
