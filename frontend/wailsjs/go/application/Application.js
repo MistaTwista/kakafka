@@ -6,8 +6,20 @@ export function Connect(arg1) {
   return window['go']['application']['Application']['Connect'](arg1);
 }
 
-export function CreateTopic(arg1, arg2, arg3, arg4) {
-  return window['go']['application']['Application']['CreateTopic'](arg1, arg2, arg3, arg4);
+export function ConsumerOffsets(arg1, arg2) {
+  return window['go']['application']['Application']['ConsumerOffsets'](arg1, arg2);
+}
+
+export function CreateProfile(arg1) {
+  return window['go']['application']['Application']['CreateProfile'](arg1);
+}
+
+export function CreateTopic(arg1, arg2) {
+  return window['go']['application']['Application']['CreateTopic'](arg1, arg2);
+}
+
+export function DeleteProfile(arg1) {
+  return window['go']['application']['Application']['DeleteProfile'](arg1);
 }
 
 export function DeleteTopic(arg1, arg2) {
@@ -18,6 +30,6 @@ export function GetConfigs() {
   return window['go']['application']['Application']['GetConfigs']();
 }
 
-export function GetTopics(arg1) {
-  return window['go']['application']['Application']['GetTopics'](arg1);
+export function GetTopics(arg1, arg2) {
+  return window['go']['application']['Application']['GetTopics'](arg1, arg2);
 }

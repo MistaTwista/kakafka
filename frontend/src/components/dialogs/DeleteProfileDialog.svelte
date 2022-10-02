@@ -1,11 +1,11 @@
 <script lang="ts">
     import Dialog from "./Dialog.svelte"
     import { createEventDispatcher } from "svelte"
-    import type { kafka } from "wailsjs/go/models"
+    import type { application, kafka } from "wailsjs/go/models"
 
     const dispatch = createEventDispatcher()
 
-    export let topic: kafka.Topic
+    export let profile: application.Profile
 
     function confirm() {
         dispatch("confirm")
@@ -19,7 +19,7 @@
 <section>
     <Dialog>
         <section>
-            <p>Delete topic {topic.name}</p>
+            <p>Delete profile {profile.name}</p>
         </section>
         <button on:click={confirm}>Delete</button>
         <button on:click={cancel}>Cancel</button>

@@ -1,17 +1,23 @@
 <script lang="ts">
     import { createEventDispatcher } from "svelte"
+    import type { application } from "wailsjs/go/models"
+    import MenuItem from "./MenuItem.svelte"
+    import PopupMenu from "./PopupMenu.svelte"
 
     const dispatch = createEventDispatcher()
 
-    interface Item {
-        name: string
+    interface Profile extends application.Profile {
         connected: boolean
     }
 
-    export let profiles: Item[]
+    export let profiles: Profile[]
 
     let collapsed: boolean = false
     let selectedItemIndex: number
+
+    let popupMenuIsActive: boolean = false
+    let popupMenuCoords = { x: 0, y: 0 }
+    let popupMenuForProfile: Profile
 
     function select(index: number) {
         selectedItemIndex = index
@@ -21,39 +27,95 @@
     function setSize() {
         collapsed = !collapsed
     }
+
+    function createProlile() {
+        dispatch("create-profile")
+    }
+
+    function deleteProfile() {
+        dispatch("delete-profile", popupMenuForProfile)
+        hidePopupMenu()
+    }
+
+    function showPopupMenu(event: MouseEvent, profile: Profile) {
+        event.stopImmediatePropagation()
+        event.preventDefault()
+
+        popupMenuCoords = {
+            x: event.x,
+            y: event.y
+        }
+
+        popupMenuForProfile = profile
+        popupMenuIsActive = true
+    }
+
+    function hidePopupMenu() {
+        popupMenuIsActive = false
+    }
 </script>
 
-<section class={collapsed && "collapsed"}>
-    <ul>
-        {#each profiles as item, index}
+<section class="sidebar {collapsed ? 'collapsed' : ''}">
+    <ul class="profiles">
+        {#each profiles as profile, index}
             <li
                 class={selectedItemIndex == index && "selected"}
                 on:click={() => {
                     select(index)
                 }}
+                on:contextmenu={e => showPopupMenu(e, profile)}
             >
-                <span class="icon {item.connected && "highlight"}" />
+                {#if profile.connected}
+                    <span class="connected" />
+                {/if}
+                <span class="icon" />
                 {#if !collapsed}
-                    <span class="name">{item.name}</span>
+                    <span class="name">{profile.name}</span>
                 {/if}
             </li>
         {/each}
     </ul>
-    <span class="collapser" on:click={setSize}>{collapsed ? "»" : "«"}</span>
+    <section>
+        <ul class="manage">
+            <li on:click={() => createProlile()}>
+                <span class="icon" />
+                {#if !collapsed}
+                    <span class="name">Add Profile</span>
+                {/if}
+            </li>
+        </ul>
+        <span class="collapser" on:click={setSize}>{collapsed ? "»" : "«"}</span>
+    </section>
+
+    {#if popupMenuIsActive}
+        <PopupMenu x={popupMenuCoords.x} y={popupMenuCoords.y} on:close={hidePopupMenu}>
+            <MenuItem on:click={deleteProfile}>Удалить</MenuItem>
+        </PopupMenu>
+    {/if}
 </section>
 
 <style>
     section {
+        display: flex;
+        flex-direction: column;
+        justify-content: start;
+    }
+
+    .sidebar {
         height: 100%;
         width: 250px;
         background-color: rgb(53, 53, 53);
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
+        position: relative;
+        user-select: none;
     }
 
     section.collapsed {
         width: 70px;
+    }
+
+    .profiles {
+        flex-grow: 1;
+        overflow-y: auto;
     }
 
     .collapser {
@@ -76,7 +138,8 @@
         justify-content: flex-start;
         align-items: center;
         cursor: pointer;
-        padding: 0 10px;
+        padding: 5px 10px;
+        position: relative;
     }
 
     li.selected {
@@ -91,12 +154,19 @@
         display: inline-block;
         width: 50px;
         height: 50px;
+        box-sizing: border-box;
         background-color: rgb(46, 117, 117);
         border-radius: 5px;
     }
 
-    .icon.highlight {
-        border: 1px solid white;
+    .connected {
+        width: 5px;
+        height: 10px;
+        background-color: aquamarine;
+        border-top-right-radius: 5px;
+        border-bottom-right-radius: 5px;
+        position: absolute;
+        left: 0px;
     }
 
     .name {
